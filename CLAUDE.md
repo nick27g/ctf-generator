@@ -11,8 +11,13 @@ AI-Enabled Solutions Developer role at HII Mission Technologies.
 
 ---
 
+## Status: COMPLETE ✓
+Live at: https://ctf-generator-beta.vercel.app
+
+---
+
 ## Current Goal
-> **Build the generator UI, wire up Vercel Function, nail the prompt, deploy.**
+> **DONE. All MVP features shipped and deployed.**
 
 ---
 
@@ -21,8 +26,8 @@ AI-Enabled Solutions Developer role at HII Mission Technologies.
 |-------|--------|-----|
 | Frontend | React + Vite | Lightweight, single-page |
 | API proxy | Vercel Serverless Function (`/api/generate.js`) | Keeps API key server-side |
-| AI | Anthropic API, Claude Sonnet (`claude-sonnet-4-20250514`) | Core feature |
-| Styling | Tailwind CSS -- dark theme, terminal aesthetic | Fits CTF culture |
+| AI | Anthropic API, `claude-sonnet-4-6` | Core feature |
+| Styling | Tailwind CSS v4 -- dark theme, terminal aesthetic | Fits CTF culture |
 | Deploy | Vercel | Auto-deploy, free tier |
 
 ---
@@ -59,62 +64,12 @@ ANTHROPIC_API_KEY=your_key_here
 ---
 
 ## Vercel Function Design
-
-```js
-// api/generate.js
-import Anthropic from '@anthropic-ai/sdk';
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
-
-  const { category, difficulty, theme } = req.body;
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const themeClause = theme ? `Theme/context: ${theme}.` : '';
-
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1200,
-    system: `You are a CTF challenge author writing for a real security competition.
-Generate a complete, solvable challenge. The challenge must be self-contained --
-all information needed to solve it is present in the description.
-
-${themeClause}
-
-Return ONLY valid JSON matching this exact schema, no other text, no markdown:
-{
-  "title": "string",
-  "description": "string",
-  "points": number,
-  "flag": "CTF{string}",
-  "hints": ["string", "string", "string"],
-  "solution": "string"
-}
-
-Rules:
-- Flag must be in CTF{...} format
-- hints[0] is vague, hints[1] is more specific, hints[2] nearly gives it away
-- solution is a complete step-by-step walkthrough
-- description contains all info needed -- no references to files that don't exist
-  EXCEPTION: forensics and reversing may describe a fictional file/binary since
-  actual files cannot be generated; write the challenge so clues are embedded
-  in the description text itself
-- points: easy=100, medium=250, hard=500`,
-    messages: [{
-      role: 'user',
-      content: `Category: ${category}\nDifficulty: ${difficulty}`
-    }],
-  });
-
-  try {
-    const challenge = JSON.parse(message.content[0].text);
-    res.json({ challenge });
-  } catch {
-    res.status(500).json({ error: 'Failed to parse challenge. Try again.' });
-  }
-}
-```
+- Model: `claude-sonnet-4-6`
+- `max_tokens: 2000` (raised from 1200 to prevent cut-off responses)
+- Markdown fence stripping applied before `JSON.parse` — Claude sometimes wraps
+  output in ```json fences despite instructions. Regex: strip leading ```json\n
+  and trailing \n```.
+- Raw response logged via `console.log` for debugging in Vercel Function logs.
 
 ---
 
@@ -126,7 +81,7 @@ interface Challenge {
   points: number;
   flag: string;          // Always CTF{...}
   hints: [string, string, string];
-  solution: string;
+  solution: string;      // Concise, 3-4 steps, no code blocks
 }
 ```
 
@@ -150,29 +105,28 @@ interface Challenge {
 - Flag hidden by default. "Reveal Flag" button shows it.
 - Solution hidden behind a toggle. Clear warning: "Don't click until you've tried."
 - Copy button on the challenge description.
-- Loading state while Claude generates (show a spinner or skeleton card).
+- Loading spinner while Claude generates.
 
 ---
 
 ## MVP Features
-- [ ] Category selector
-- [ ] Difficulty selector
-- [ ] Optional theme input
-- [ ] Generate button → POST to `/api/generate`
-- [ ] Challenge card with title, description, points
-- [ ] Progressive hint reveal (3 hints)
-- [ ] Solution toggle
-- [ ] Reveal Flag button
-- [ ] Copy challenge button
-- [ ] Loading and error states
+- [x] Category selector
+- [x] Difficulty selector
+- [x] Optional theme input
+- [x] Generate button → POST to `/api/generate`
+- [x] Challenge card with title, description, points
+- [x] Progressive hint reveal (3 hints)
+- [x] Solution toggle
+- [x] Reveal Flag button
+- [x] Copy challenge button
+- [x] Loading and error states
 
 ---
 
 ## Key Rules
 - API key server-side only in the Vercel Function.
 - Parse Claude's JSON in try/catch -- if it fails, show a retry message.
-- Don't trust that Claude always returns valid JSON on the first attempt.
-  Consider a retry on parse failure before showing the error to the user.
+- Markdown fence stripping before parse (fence-stripping fix shipped).
 - No `<form>` tags. Use onClick handlers.
 
 ---
@@ -180,16 +134,14 @@ interface Challenge {
 ## Local Dev
 ```bash
 npm install
-npm run dev
-# Vite runs at http://localhost:5173
-# To test the Vercel Function: npm install -g vercel && vercel dev
+vercel dev   # serves both Vite frontend and /api/generate at localhost:3000
 ```
 
 ---
 
 ## Deploy
 ```bash
-vercel
+vercel --prod
 ```
 Add `ANTHROPIC_API_KEY` in Vercel dashboard before first deploy.
 
@@ -197,19 +149,7 @@ Add `ANTHROPIC_API_KEY` in Vercel dashboard before first deploy.
 
 ## Known Limitations
 - Forensics/reversing categories can't generate actual files -- challenges
-  are text-scenario based. Documented in README.
-- Claude occasionally generates a flag that isn't solvable from the description
-  alone -- retry usually fixes this
-- No persistence -- generated challenges are lost on page refresh (localStorage
-  is a stretch goal)
-
----
-
-## README Checklist (produce at end of project)
-- [ ] What it does + live URL
-- [ ] How the prompt produces consistent, solvable challenges
-- [ ] Forensics/reversing limitation explanation
-- [ ] How difficulty changes output
-- [ ] How to run locally
-- [ ] Known limitations
-- [ ] Interview talking point: built to be genuinely playable
+  are text-scenario based.
+- Claude occasionally wraps JSON in markdown fences; fence-stripping handles
+  this but an occasional retry may still be needed.
+- No persistence -- generated challenges are lost on page refresh.
